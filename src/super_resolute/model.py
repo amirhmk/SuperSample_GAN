@@ -75,9 +75,8 @@ class Discriminator(nn.Module):
 
 
 class Generator(nn.Module):
-    def __init__(self, conv_dim, scale_factor, num_residual_blocks):
+    def __init__(self, conv_dim, scale_factor):
         super(Generator, self).__init__()
-        self.num_residual_blocks = num_residual_blocks
         self.upsample_factor = scale_factor
 
         self.layer1 = nn.Conv2d(3, conv_dim, kernel_size=9, stride=1, padding=4)

@@ -1,41 +1,46 @@
+import os
 import torch.optim as optim
 import torch
 import torch.nn as nn
 from model import Generator, Discriminator
 
+
+def print_models(Generator, Discriminator):
+    """Prints model information for the generators and discriminators.
+    """
+    print("                 Generator             ")
+    print("---------------------------------------")
+    print(Generator)
+    print("---------------------------------------")
+
+    print("             Discriminator             ")
+    print("---------------------------------------")
+    print(Discriminator)
+    print("---------------------------------------")
+
 def create_model(opts):
     """Builds the generators and discriminators.
     """
-    G_XtoY = CycleGenerator(conv_dim=opts.g_conv_dim,
-                            init_zero_weights=opts.init_zero_weights)
-    G_YtoX = CycleGenerator(conv_dim=opts.g_conv_dim,
-                            init_zero_weights=opts.init_zero_weights)
-    D_X = DCDiscriminator(conv_dim=opts.d_conv_dim)
-    D_Y = DCDiscriminator(conv_dim=opts.d_conv_dim)
+    G = Generator(conv_dim=opts.g_conv_dim, scale_factor=opts.scale_factor)
+    D = Discriminator(conv_dim=opts.d_conv_dim)
 
-    print_models(G_XtoY, G_YtoX, D_X, D_Y)
+    print_models(G, D)
 
     if torch.cuda.is_available():
-        G_XtoY.cuda()
-        G_YtoX.cuda()
-        D_X.cuda()
-        D_Y.cuda()
+        D.cuda()
+        D.cuda()
         print('Models moved to GPU.')
 
-    return G_XtoY, G_YtoX, D_X, D_Y
+    return G, D
 
 
-def checkpoint(iteration, G_XtoY, G_YtoX, D_X, D_Y, opts):
+def checkpoint(iteration, G, D, opts):
     """Saves the parameters of both generators G_YtoX, G_XtoY and discriminators D_X, D_Y.
     """
-    G_XtoY_path = os.path.join(opts.checkpoint_dir, 'G_XtoY.pkl')
-    G_YtoX_path = os.path.join(opts.checkpoint_dir, 'G_YtoX.pkl')
-    D_X_path = os.path.join(opts.checkpoint_dir, 'D_X.pkl')
-    D_Y_path = os.path.join(opts.checkpoint_dir, 'D_Y.pkl')
-    torch.save(G_XtoY.state_dict(), G_XtoY_path)
-    torch.save(G_YtoX.state_dict(), G_YtoX_path)
-    torch.save(D_X.state_dict(), D_X_path)
-    torch.save(D_Y.state_dict(), D_Y_path)
+    G_path = os.path.join(opts.checkpoint_dir, 'G_.pth')
+    D_path = os.path.join(opts.checkpoint_dir, 'D_.pth')
+    torch.save(G.state_dict(), G_path)
+    torch.save(D.state_dict(), D_path)
 
 
 def training_loop(dataloader_X, dataloader_Y, test_dataloader_X, test_dataloader_Y, opts):
@@ -46,14 +51,13 @@ def training_loop(dataloader_X, dataloader_Y, test_dataloader_X, test_dataloader
 
     # Create generators and discriminators
     if opts.load:
-        G_XtoY, G_YtoX, D_X, D_Y = load_checkpoint(opts)
+        G, D = load_checkpoint(opts)
     else:
-        G_XtoY, G_YtoX, D_X, D_Y = create_model(opts)
+        G, D = create_model(opts)
 
-    g_params = list(G_XtoY.parameters()) + \
-        list(G_YtoX.parameters())  # Get generator parameters
+    g_params = list(G.parameters()) # Get generator parameters
     # Get discriminator parameters
-    d_params = list(D_X.parameters()) + list(D_Y.parameters())
+    d_params = list(D.parameters())
 
     # Create optimizers for the generators and discriminators
     g_optimizer = optim.Adam(g_params, opts.lr, [opts.beta1, opts.beta2])
@@ -187,3 +191,83 @@ def training_loop(dataloader_X, dataloader_Y, test_dataloader_X, test_dataloader
         # Save the model parameters
         if iteration % opts.checkpoint_every == 0:
             checkpoint(iteration, G_XtoY, G_YtoX, D_X, D_Y, opts)
+
+
+def main(opts):
+    """Loads the data, creates checkpoint and sample directories, and starts the training loop.
+    """
+
+    # Create train and test dataloaders for images from the two domains X and Y
+    dataloader_X, test_dataloader_X = get_emoji_loader(
+        emoji_type=opts.X, opts=opts)
+    dataloader_Y, test_dataloader_Y = get_emoji_loader(
+        emoji_type=opts.Y, opts=opts)
+
+    # Create checkpoint and sample directories
+    utils.create_dir(opts.checkpoint_dir)
+    utils.create_dir(opts.sample_dir)
+
+    # Start training
+    training_loop(dataloader_X, dataloader_Y,
+                  test_dataloader_X, test_dataloader_Y, opts)
+
+
+def create_parser():
+    """Creates a parser for command-line arguments.
+    """
+    parser = argparse.ArgumentParser()
+
+    # Model hyper-parameters
+    parser.add_argument('--image_size', type=int, default=32,
+                        help='The side length N to convert images to NxN.')
+    parser.add_argument('--g_conv_dim', type=int, default=32)
+    parser.add_argument('--d_conv_dim', type=int, default=32)
+    parser.add_argument('--use_cycle_consistency_loss', action='store_true', default=False,
+                        help='Choose whether to include the cycle consistency term in the loss.')
+    parser.add_argument('--init_zero_weights', action='store_true', default=False,
+                        help='Choose whether to initialize the generator conv weights to 0 (implements the identity function).')
+
+    # Training hyper-parameters
+    parser.add_argument('--train_iters', type=int, default=600,
+                        help='The number of training iterations to run (you can Ctrl-C out earlier if you want).')
+    parser.add_argument('--batch_size', type=int, default=16,
+                        help='The number of images in a batch.')
+    parser.add_argument('--num_workers', type=int, default=0,
+                        help='The number of threads to use for the DataLoader.')
+    parser.add_argument('--lr', type=float, default=0.0003,
+                        help='The learning rate (default 0.0003)')
+    parser.add_argument('--beta1', type=float, default=0.5)
+    parser.add_argument('--beta2', type=float, default=0.999)
+
+    # Data sources
+    parser.add_argument('--X', type=str, default='Apple', choices=[
+                        'Apple', 'Windows'], help='Choose the type of images for domain X.')
+    parser.add_argument('--Y', type=str, default='Windows', choices=[
+                        'Apple', 'Windows'], help='Choose the type of images for domain Y.')
+
+    # Saving directories and checkpoint/sample iterations
+    parser.add_argument('--checkpoint_dir', type=str,
+                        default='checkpoints_cyclegan')
+    parser.add_argument('--sample_dir', type=str, default='samples_cyclegan')
+    parser.add_argument('--load', type=str, default=None)
+    parser.add_argument('--log_step', type=int, default=10)
+    parser.add_argument('--sample_every', type=int, default=100)
+    parser.add_argument('--checkpoint_every', type=int, default=800)
+
+    return parser
+
+
+if __name__ == '__main__':
+
+    parser = create_parser()
+    opts = parser.parse_args()
+
+    if opts.use_cycle_consistency_loss:
+        opts.sample_dir = 'samples_cyclegan_cycle'
+
+    if opts.load:
+        opts.sample_dir = '{}_pretrained'.format(opts.sample_dir)
+        opts.sample_every = 20
+
+    print_opts(opts)
+    main(opts)
