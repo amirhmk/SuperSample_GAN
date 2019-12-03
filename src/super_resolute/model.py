@@ -55,7 +55,6 @@ class Discriminator(nn.Module):
         self.last = nn.Conv2d(conv_dim * 16, 1, kernel_size=1, stride=1, padding=0)
 
     def forward(self, x):
-        print(self.conv_dim)
         out = F.relu(self.layer1(x))
         out = F.relu(self.layer2(out))
         out = F.relu(self.layer3(out))        

@@ -46,7 +46,7 @@ def create_model(opts):
         D.cuda()
         print('Models moved to GPU.')
 
-    return G, D
+    return G.float(), D
 
 
 def checkpoint(iteration, G, D, opts):
@@ -98,48 +98,39 @@ def training_loop(dataloader_train, dataloader_valid, opts):
     for iteration in range(1, opts.train_iters+1):
 
         # Reset data_iter for each epoch
-        # print(iteration, iter_per_epoch)
         if iteration % iter_per_epoch == 0:
             train_iter = iter(dataloader_train)
+        images_HR, images_LR = train_iter.next()
+        # print("images", images_LR.shape, images_HR.shape)
+        images_HR, images_LR = utils.to_var(images_HR).float().squeeze(), utils.to_var(images_LR).float().squeeze()
+        # print("images", images_LR.shape, images_HR.shape, images_LR.type(), images_HR.type())
+        # print("talking about u", images_LR.size(0))
+        # valid, fake = utils.generate_random_groundtruth(opts)
 
-        images_LR, images_HR = train_iter.next()
-        print("images", images_LR.shape, images_HR.shape)
-        images_LR, images_HR = utils.to_var(
-            images_LR), utils.to_var(images_HR).long().squeeze()
-
-        # print(images, target)
-
-        # images_Y, labels_Y = iter_Y.next()
-        # images_Y, labels_Y = utils.to_var(
-        #     images_Y), utils.to_var(labels_Y).long().squeeze()
 
         # ============================================
         #            TRAIN THE DISCRIMINATOR
         # ============================================
         # Train with real images
         d_optimizer.zero_grad()
-        batch_size = opts.batch_size
         # 1. Compute the discriminator losses on real images
 
-        # D_X_loss = np.sum(np.power(D_X(images_X) - 1, 2)) / batch_size
-        # D_Y_loss = np.sum(np.power(D_Y(images_Y) - 1, 2)) / batch_size
-
-        # d_real_loss = D_X_loss + D_Y_loss
-        # d_real_loss.backward()
-        # d_optimizer.step()
 
         # Train with fake images
 
         # 2. Generate fake images that look like domain X based on real images in domain Y
-        fake_img = G(images)
+        fake_img = G(images_LR)
 
         d_optimizer.zero_grad()
         # 3. Compute the loss for D_X
-        real_out = D(target).mean()
-        fake_out = D(fake_img).mean()
+        real_out = D(images_HR)
+        fake_out = D(fake_img)
+        print(fake_out.shape, fake_out.size(0))
+
+        print(real_out.shape, images_HR.shape)
 
         d_fake_loss = d_loss_criterion(real_out, fake_out)
-        d_fake_loss.backward()
+        d_fake_loss.backward(retain_graph=True)
         mean_discriminator_loss += d_fake_loss.item()
         d_optimizer.step()
 
@@ -148,23 +139,24 @@ def training_loop(dataloader_train, dataloader_valid, opts):
         # =========================================
         g_optimizer.zero_grad()
 
-        g_loss = g_loss_criterion(fake_out, fake_img)
+        g_loss = g_loss_criterion(real_out, valid)
         g_loss.backward()
 
         # 1. Generate fake images that look like domain X based on real images in domain Y
-        fake_img = G(images)
+        fake_img = G(images_LR)
         fake_out = D(fake_img).mean()
 
         # 2. Compute the generator loss
         mean_generator_loss += g_loss.item()
+        print("mean_generator_loss", mean_generator_loss)
         g_optimizer.step()
 
         # Print the log info
-        # if iteration % opts.log_step == 0:
-        #     print('Iteration [{:5d}/{:5d}] | d_real_loss: {:6.4f} | d_Y_loss: {:6.4f} | d_X_loss: {:6.4f} | '
-        #           'd_fake_loss: {:6.4f} | g_loss: {:6.4f}'.format(
-        #               iteration, opts.train_iters, d_real_loss.data[0], D_Y_loss.data[0],
-        #               D_X_loss.data[0], d_fake_loss.data[0], g_loss.data[0]))
+        if iteration % opts.log_step == 0:
+            print('Iteration [{:5d}/{:5d}] | d_real_loss: {:6.4f} | d_Y_loss: {:6.4f} | d_X_loss: {:6.4f} | '
+                  'd_fake_loss: {:6.4f} | g_loss: {:6.4f}'.format(
+                      iteration, opts.train_iters, d_real_loss.data[0], D_Y_loss.data[0],
+                      D_X_loss.data[0], d_fake_loss.data[0], g_loss.data[0]))
 
         # Save the model parameters
         if iteration % opts.checkpoint_every == 0:
@@ -192,7 +184,7 @@ def create_parser():
     parser = argparse.ArgumentParser()
 
     # Model hyper-parameters
-    parser.add_argument('--image_size', type=int, default=32,
+    parser.add_argument('--image_size', type=int, default=100,
                         help='The side length N to convert images to NxN.')
     parser.add_argument('--g_conv_dim', type=int, default=8)
     parser.add_argument('--d_conv_dim', type=int, default=8)
