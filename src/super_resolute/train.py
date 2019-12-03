@@ -92,11 +92,9 @@ def training_loop(dataloader_train, dataloader_valid, opts):
     # fixed_Y = utils.to_var(test_iter_Y.next()[0])
 
     iter_per_epoch = len(train_iter)
-    mean_discriminator_loss = 0
-    mean_generator_loss = 0
-
     for iteration in range(1, opts.train_iters+1):
-
+        mean_discriminator_loss = 0
+        mean_generator_loss = 0
         # Reset data_iter for each epoch
         if iteration % iter_per_epoch == 0:
             train_iter = iter(dataloader_train)
@@ -105,7 +103,7 @@ def training_loop(dataloader_train, dataloader_valid, opts):
         images_HR, images_LR = utils.to_var(images_HR).float().squeeze(), utils.to_var(images_LR).float().squeeze()
         # print("images", images_LR.shape, images_HR.shape, images_LR.type(), images_HR.type())
         # print("talking about u", images_LR.size(0))
-        # valid, fake = utils.generate_random_groundtruth(opts)
+        valid, fake = utils.generate_random_groundtruth(images_LR.size(0), 64)
 
 
         # ============================================
@@ -125,9 +123,6 @@ def training_loop(dataloader_train, dataloader_valid, opts):
         # 3. Compute the loss for D_X
         real_out = D(images_HR)
         fake_out = D(fake_img)
-        print(fake_out.shape, fake_out.size(0))
-
-        print(real_out.shape, images_HR.shape)
 
         d_fake_loss = d_loss_criterion(real_out, fake_out)
         d_fake_loss.backward(retain_graph=True)
@@ -148,15 +143,17 @@ def training_loop(dataloader_train, dataloader_valid, opts):
 
         # 2. Compute the generator loss
         mean_generator_loss += g_loss.item()
-        print("mean_generator_loss", mean_generator_loss)
         g_optimizer.step()
 
+        print("iteration: ", iteration)
+        print("mean_generator_loss", mean_generator_loss)
+        print("mean_discriminator_loss", mean_discriminator_loss)
         # Print the log info
-        if iteration % opts.log_step == 0:
-            print('Iteration [{:5d}/{:5d}] | d_real_loss: {:6.4f} | d_Y_loss: {:6.4f} | d_X_loss: {:6.4f} | '
-                  'd_fake_loss: {:6.4f} | g_loss: {:6.4f}'.format(
-                      iteration, opts.train_iters, d_real_loss.data[0], D_Y_loss.data[0],
-                      D_X_loss.data[0], d_fake_loss.data[0], g_loss.data[0]))
+        # if iteration % opts.log_step == 0:
+        #     print('Iteration [{:5d}/{:5d}] | d_real_loss: {:6.4f} | d_Y_loss: {:6.4f} | d_X_loss: {:6.4f} | '
+        #           'd_fake_loss: {:6.4f} | g_loss: {:6.4f}'.format(
+        #               iteration, opts.train_iters, d_real_loss.data[0], D_Y_loss.data[0],
+        #               D_X_loss.data[0], d_fake_loss.data[0], g_loss.data[0]))
 
         # Save the model parameters
         if iteration % opts.checkpoint_every == 0:
