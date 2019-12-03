@@ -67,6 +67,16 @@ def find_homography(matches, kp1, kp2, min_matches=MIN_MATCHES):
     
     return None, None, None
 
+def draw_matches(img1, img2, kp1, kp2, matches, matchesMask):
+    # Initiate SIFT detector
+    draw_params = dict(matchColor=(0, 255, 0),  # draw matches in green color
+                       singlePointColor=None,
+                       matchesMask=matchesMask,  # draw only inliers
+                       flags=2)
+    image_with_matches = cv2.drawMatches(img1, kp1, img2,
+                                         kp2, matches, None, **draw_params)
+
+    return image_with_matches     
 
 def main(opts):
 
@@ -76,34 +86,28 @@ def main(opts):
 
     H, mask, matchesMask = find_homography(matches, kp1, kp2)
 
-    h, w, z = image_with_fruit.shape
-
-
-    pts = np.float32([[0, 0], [0, h-1], [w-1, h-1],
-                  [w-1, 0]]).reshape(-1, 1, 2)
-
-    # Initiate SIFT detector
-    image_with_matches = cv2.drawMatches(image_with_fruit, kp1, image_without_fruit,
-                           kp2, matches, None, **draw_params)
-
+    h, w, _ = image_with_fruit.shape
+    
     # Hard Coded values for cropped box
     y1 = 405*2
     y2 = 480*2
     x1 = 277*2
     x2 = 410*2
 
-    print(image_with_fruit[405*2:480*2, 277*2:410*2])
-    fruit_crop = np.uint8(
-        np.zeros((image_with_fruit.shape[0], image_with_fruit.shape[1], 3)))
-    fruit_crop[y1:y2, x1:x2] = image_with_fruit[y1:y2, 277*2:410*2]
+    fruit_crop = np.uint8(np.zeros((h, w, 3)))
+    fruit_crop[y1:y2, x1:x2] = image_with_fruit[y1:y2, x1:x2]
 
     fruit_crop_warped = cv2.warpPerspective(fruit_crop, H, (1920, 1080))
-    plt.imshow(fruit_crop_warped)
-    plt.show()
 
     image_with_fruit_added = image_without_fruit.copy()
+
     image_with_fruit_added[fruit_crop_warped != 0] = fruit_crop_warped[fruit_crop_warped != 0]
-    plt.imshow(image_with_fruit_added)
+    # plt.imshow(image_with_fruit_added)
+    # plt.show()
+
+    image_with_fruit_added_pers1 = cv2.warpPerspective(
+        image_with_fruit_added, np.linalg.inv(H), (1080, 1920))
+    plt.imshow(image_with_fruit_added_pers1)
     plt.show()
 
 if __name__ == '__main__':
