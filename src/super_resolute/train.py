@@ -5,7 +5,20 @@ import torch.nn as nn
 from model import Generator, Discriminator
 import utils
 from data_loader import get_super_resolute_data_loader
+import argparse
 
+
+
+def print_opts(opts):
+    """Prints the values of all command-line arguments.
+    """
+    print('=' * 80)
+    print('Opts'.center(80))
+    print('-' * 80)
+    for key in opts.__dict__:
+        if opts.__dict__[key]:
+            print('{:>30}: {:<30}'.format(key, opts.__dict__[key]).center(80))
+    print('=' * 80)
 
 def print_models(Generator, Discriminator):
     """Prints model information for the generators and discriminators.
@@ -71,7 +84,7 @@ def training_loop(dataloader_train, dataloader_valid, opts):
 
     train_iter = iter(dataloader_train)
 
-    valid_iter_X = iter(dataloader_valid)
+    # valid_iter = iter(dataloader_valid)
 
     # Get some fixed data from domains X and Y for sampling. These are images that are held
     # constant throughout training, that allow us to inspect the model's performance.
@@ -85,12 +98,16 @@ def training_loop(dataloader_train, dataloader_valid, opts):
     for iteration in range(1, opts.train_iters+1):
 
         # Reset data_iter for each epoch
+        # print(iteration, iter_per_epoch)
         if iteration % iter_per_epoch == 0:
-            iter = iter(train_iter)
+            train_iter = iter(dataloader_train)
 
-        images, target = iter.next()
-        images, target = utils.to_var(
-            images), utils.to_var(target).long().squeeze()
+        images_LR, images_HR = train_iter.next()
+        print("images", images_LR.shape, images_HR.shape)
+        images_LR, images_HR = utils.to_var(
+            images_LR), utils.to_var(images_HR).long().squeeze()
+
+        # print(images, target)
 
         # images_Y, labels_Y = iter_Y.next()
         # images_Y, labels_Y = utils.to_var(
@@ -159,15 +176,14 @@ def main(opts):
     """
 
     # Create train and test dataloaders for images from the two domains X and Y
-    train_dloader, test_dloader = get_super_resolute_data_loader(opts=opts)
+    train_dloader, test_dloader = get_super_resolute_data_loader(opts)
 
     # Create checkpoint and sample directories
     utils.create_dir(opts.checkpoint_dir)
     utils.create_dir(opts.sample_dir)
 
     # Start training
-    training_loop(dataloader_X, dataloader_Y,
-                  test_dataloader_X, test_dataloader_Y, opts)
+    training_loop(train_dloader, test_dloader, opts)
 
 
 def create_parser():
@@ -178,17 +194,19 @@ def create_parser():
     # Model hyper-parameters
     parser.add_argument('--image_size', type=int, default=32,
                         help='The side length N to convert images to NxN.')
-    parser.add_argument('--g_conv_dim', type=int, default=32)
-    parser.add_argument('--d_conv_dim', type=int, default=32)
+    parser.add_argument('--g_conv_dim', type=int, default=8)
+    parser.add_argument('--d_conv_dim', type=int, default=8)
     parser.add_argument('--use_cycle_consistency_loss', action='store_true', default=False,
                         help='Choose whether to include the cycle consistency term in the loss.')
     parser.add_argument('--init_zero_weights', action='store_true', default=False,
                         help='Choose whether to initialize the generator conv weights to 0 (implements the identity function).')
+    parser.add_argument('--scale_factor', type=int, default=4)
+
 
     # Training hyper-parameters
-    parser.add_argument('--train_iters', type=int, default=600,
+    parser.add_argument('--train_iters', type=int, default=100,
                         help='The number of training iterations to run (you can Ctrl-C out earlier if you want).')
-    parser.add_argument('--batch_size', type=int, default=16,
+    parser.add_argument('--batch_size', type=int, default=64,
                         help='The number of images in a batch.')
     parser.add_argument('--num_workers', type=int, default=0,
                         help='The number of threads to use for the DataLoader.')
@@ -198,10 +216,10 @@ def create_parser():
     parser.add_argument('--beta2', type=float, default=0.999)
 
     # Data sources
-    parser.add_argument('--X', type=str, default='Apple', choices=[
-                        'Apple', 'Windows'], help='Choose the type of images for domain X.')
-    parser.add_argument('--Y', type=str, default='Windows', choices=[
-                        'Apple', 'Windows'], help='Choose the type of images for domain Y.')
+    parser.add_argument('--training_data_path', type=str, help='Path to training data',
+                        default='data/DIV2K_train_HR')
+    parser.add_argument('--validation_data_path', type=str, help='Path to training data',
+                        default='data/DIV2K_valid_HR')
 
     # Saving directories and checkpoint/sample iterations
     parser.add_argument('--checkpoint_dir', type=str,
@@ -209,7 +227,7 @@ def create_parser():
     parser.add_argument('--sample_dir', type=str, default='samples_cyclegan')
     parser.add_argument('--load', type=str, default=None)
     parser.add_argument('--log_step', type=int, default=10)
-    parser.add_argument('--sample_every', type=int, default=100)
+    # parser.add_argument('--sample_every', type=int, default=100)
     parser.add_argument('--checkpoint_every', type=int, default=800)
 
     return parser
