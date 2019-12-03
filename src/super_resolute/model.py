@@ -66,7 +66,6 @@ class Discriminator(nn.Module):
         out = F.relu(self.layer8(out))
         out = F.relu(self.layer9(out))
         out = self.last(out)
-        print("oh myyyy", out.shape)
         out = torch.sigmoid(out.view(x.shape[0]))
         return out
 
@@ -94,7 +93,6 @@ class Generator(nn.Module):
 
         upsample_layers = []
         for _ in range(self.scale_factor // 2):
-            print("hi", conv_dim)
             upsample_layers.append(UpsampleBLock(conv_dim))
         
         self.upsample_layers = nn.Sequential(
@@ -105,13 +103,10 @@ class Generator(nn.Module):
             conv_dim, 3, kernel_size=9, stride=1, padding=4)
     
     def forward(self, x):
-        print("x", x.shape, x.type(), self.layer1(x).type())
         orig_out = F.relu(self.layer1(x))
         out = self.residual_layers(orig_out)
         out = self.layer2(out + orig_out)
-        print("holaaa", out.shape, orig_out.shape)
         out = self.upsample_layers(out)
-        print("anoda one", out.shape, orig_out.shape)
         out = self.layer3(out)
         return out
 
@@ -138,7 +133,6 @@ class ResidualBlock(nn.Module):
 
 class UpsampleBLock(nn.Module):
     def __init__(self, conv_dim):
-        print("hooola", conv_dim)
         super(UpsampleBLock, self).__init__()
         self.layer = nn.Sequential(
             nn.Conv2d(conv_dim, conv_dim * 4,
@@ -147,7 +141,6 @@ class UpsampleBLock(nn.Module):
         )
 
     def forward(self, x):
-        print("x", x.shape)
         out = F.relu(self.layer(x))
         return out
 
