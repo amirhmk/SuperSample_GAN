@@ -9,6 +9,8 @@ def create_parser():
     parser =argparse.ArgumentParser()
     parser.add_argument('--left_image', type=str, required=True)
     parser.add_argument('--right_image', type=str, required=True)
+    parser.add_argument('--upscaled_fruit', type=str, required=True)
+    parser.add_argument('--bounding_box', type=str, required=True)
 
     return parser
 
@@ -18,7 +20,7 @@ def read_images(opts, visualize=False):
     image_without_fruit = cv2.imread(opts.right_image)
     image_without_fruit = cv2.cvtColor(image_without_fruit, cv2.COLOR_BGR2RGB)
     upscaled_fruit = cv2.imread(opts.upscaled_fruit)
-    upscaled_fruit = cv2.cvtColor(image_with_fruit, cv2.COLOR_BGR2RGB)
+    upscaled_fruit = cv2.cvtColor(upscaled_fruit, cv2.COLOR_BGR2RGB)
 
     if visualize:
         plt.imshow(image_with_fruit)
@@ -108,10 +110,8 @@ def main(opts):
     h, w, _ = image_with_fruit.shape
     
     # Hard Coded values for cropped box
-    y1 = 405*2
-    y2 = 480*2
-    x1 = 277*2
-    x2 = 410*2
+
+    y1, y2, x1, x2 = map(int, opts.bounding_box.strip('[]').split(','))
 
     fruit_crop = np.uint8(np.zeros((h, w, 3)))
     fruit_crop[y1:y2, x1:x2] = upscaled_fruit
