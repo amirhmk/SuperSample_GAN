@@ -17,13 +17,32 @@ def read_images(opts, visualize=False):
     image_with_fruit = cv2.cvtColor(image_with_fruit, cv2.COLOR_BGR2RGB)
     image_without_fruit = cv2.imread(opts.right_image)
     image_without_fruit = cv2.cvtColor(image_without_fruit, cv2.COLOR_BGR2RGB)
+    upscaled_fruit = cv2.imread(opts.upscaled_fruit)
+    upscaled_fruit = cv2.cvtColor(image_with_fruit, cv2.COLOR_BGR2RGB)
 
     if visualize:
         plt.imshow(image_with_fruit)
         plt.imshow(image_without_fruit)
         plt.show()
 
-    return image_with_fruit, image_without_fruit
+    # Downscale original image with fruit to simulate low resolution input
+    scale_percent = 25
+    width = int(image_with_fruit.shape[1] * scale_percent / 100)
+    height = int(image_with_fruit.shape[0] * scale_percent / 100)
+    dim = (width, height)
+    # resize image
+    image_with_fruit = cv2.resize(image_with_fruit, dim, interpolation=cv2.INTER_CUBIC)
+
+    # Upscale the low resolution pseudo input for homography calculations
+    scale_percent = 400
+    width = int(image_with_fruit.shape[1] * scale_percent / 100)
+    height = int(image_with_fruit.shape[0] * scale_percent / 100)
+    dim = (width, height)
+    # resize image
+    image_with_fruit = cv2.resize(image_with_fruit, dim, interpolation=cv2.INTER_CUBIC)
+
+
+    return image_with_fruit, image_without_fruit, upscaled_fruit
 
 def SIFT_match(img1, img2, min_matches=MIN_MATCHES):
     sift = cv2.xfeatures2d_SIFT.create()
@@ -80,7 +99,7 @@ def draw_matches(img1, img2, kp1, kp2, matches, matchesMask):
 
 def main(opts):
 
-    image_with_fruit, image_without_fruit = read_images(opts)
+    image_with_fruit, image_without_fruit, upscaled_fruit = read_images(opts)
 
     matches, kp1, kp2 = SIFT_match(image_with_fruit, image_without_fruit)    
 
@@ -95,20 +114,16 @@ def main(opts):
     x2 = 410*2
 
     fruit_crop = np.uint8(np.zeros((h, w, 3)))
-    fruit_crop[y1:y2, x1:x2] = image_with_fruit[y1:y2, x1:x2]
+    fruit_crop[y1:y2, x1:x2] = upscaled_fruit
 
-    fruit_crop_warped = cv2.warpPerspective(fruit_crop, H, (1920, 1080))
+    fruit_crop_warped = cv2.warpPerspective(fruit_crop, H, (image_with_fruit.shape[1], image_with_fruit.shape[0]))
 
     image_with_fruit_added = image_without_fruit.copy()
 
     image_with_fruit_added[fruit_crop_warped != 0] = fruit_crop_warped[fruit_crop_warped != 0]
-    # plt.imshow(image_with_fruit_added)
-    # plt.show()
-
-    image_with_fruit_added_pers1 = cv2.warpPerspective(
-        image_with_fruit_added, np.linalg.inv(H), (1080, 1920))
-    plt.imshow(image_with_fruit_added_pers1)
+    plt.imshow(image_with_fruit_added)
     plt.show()
+
 
 if __name__ == '__main__':
     parser = create_parser()
